@@ -87,6 +87,7 @@ function serializeMessage(m) {
     isStarred: m.isStarred,
     fromMe: m.fromMe,
     author: m.author,
+    ack: typeof m.ack === 'number' ? m.ack : null,
     deviceType: m.deviceType,
   };
 }
@@ -300,6 +301,22 @@ app.post('/sessions/:id/messages', async (req, res, next) => {
     }
 
     res.json(serializeMessage(result) || { ok: true });
+  } catch (e) { next(e); }
+});
+
+// Fetch recent messages for a chat so Laravel can hydrate its local history.
+// whatsapp-web.js returns a bounded recent window; Laravel sorts by timestamp/id
+// after persisting.
+app.get('/sessions/:id/chats/:chatId/messages', async (req, res, next) => {
+  try {
+    const s = getSession(req.params.id);
+    requireReady(s);
+
+    const limit = Math.max(1, Math.min(parseInt(req.query.limit || '50', 10) || 50, 500));
+    const chat = await s.client.getChatById(req.params.chatId);
+    const messages = await chat.fetchMessages({ limit });
+
+    res.json(messages.map(serializeMessage).filter(Boolean));
   } catch (e) { next(e); }
 });
 
