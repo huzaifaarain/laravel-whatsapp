@@ -57,6 +57,8 @@ class ChatHistory extends Component
         $this->messagesLimit = (int) config('laravel-whatsapp.ui.messages_initial', 50);
         $this->error = null;
 
+        $this->hydrateChatHistory($chatId);
+
         // Tell the Alpine root to jump to the bottom — Livewire's morph will
         // have replaced the conversation pane, and the previous x-init on the
         // outer x-data block only fires once on first mount.
@@ -276,6 +278,53 @@ class ChatHistory extends Component
         } catch (\Throwable) {
             // wa_messages table missing — skip silently, message still went out.
         }
+    }
+
+    protected function hydrateChatHistory(string $chatId): void
+    {
+        try {
+            $messages = app(WebClient::class)->session($this->session)->messages()
+                ->history($chatId, $this->messagesLimit);
+
+            foreach ($messages as $message) {
+                $this->persistFetchedMessage($chatId, $message);
+            }
+        } catch (SidecarException $e) {
+            $this->error = $this->error ?? $e->getMessage();
+        } catch (\Throwable) {
+            // wa_messages table missing or unavailable — keep the UI usable.
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $message
+     */
+    protected function persistFetchedMessage(string $chatId, array $message): void
+    {
+        $messageId = $message['id'] ?? null;
+
+        if (! $messageId) {
+            return;
+        }
+
+        $isOutbound = (bool) ($message['fromMe'] ?? false);
+
+        WaMessage::updateOrCreate(
+            ['wa_message_id' => $messageId, 'backend' => 'web'],
+            [
+                'session_id' => $this->session,
+                'direction' => $isOutbound ? 'outbound' : 'inbound',
+                'chat_id' => $chatId,
+                'from_id' => $message['from'] ?? null,
+                'to_id' => $message['to'] ?? null,
+                'type' => $message['type'] ?? 'unknown',
+                'body' => $message['body'] ?? null,
+                'payload' => $message,
+                'status' => $isOutbound ? 'sent' : 'received',
+                'ack' => isset($message['ack']) ? (int) $message['ack'] : null,
+                'wa_timestamp' => isset($message['timestamp']) ? now()->setTimestamp((int) $message['timestamp']) : null,
+            ],
+        );
     }
 
     public function render()

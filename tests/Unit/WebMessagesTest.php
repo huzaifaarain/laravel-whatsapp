@@ -28,6 +28,29 @@ class WebMessagesTest extends TestCase
         $this->assertSame('hi from web', $body['body']);
     }
 
+    public function test_history_fetches_recent_chat_messages_from_sidecar(): void
+    {
+        $client = $this->app->make(WebClient::class);
+        $this->mockGuzzleOn($client, [
+            new Response(200, [], json_encode([
+                [
+                    'id' => 'message-id',
+                    'from' => '966512345678@c.us',
+                    'to' => 'me@c.us',
+                    'body' => 'hello',
+                    'fromMe' => false,
+                ],
+            ])),
+        ]);
+
+        $messages = $client->session('main')->messages()->history('966512345678@c.us', 25);
+
+        $req = $this->lastRequest();
+        $this->assertSame('GET', $req->getMethod());
+        $this->assertStringEndsWith('sessions/main/chats/966512345678%40c.us/messages?limit=25', (string) $req->getUri());
+        $this->assertSame('message-id', $messages[0]['id']);
+    }
+
     public function test_send_image_includes_url_and_caption(): void
     {
         $client = $this->app->make(WebClient::class);

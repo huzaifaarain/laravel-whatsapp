@@ -15,6 +15,22 @@ class MessagesResource extends Resource
     }
 
     /**
+     * Fetch recent messages from a specific chat.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function history(string $chatId, int $limit = 50): array
+    {
+        $response = $this->request(
+            'GET',
+            "sessions/{$this->sessionId}/chats/".rawurlencode($chatId).'/messages',
+            ['query' => ['limit' => $limit]],
+        );
+
+        return $response['data'] ?? $response;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function sendText(string $to, string $body, ?string $quotedMessageId = null): array

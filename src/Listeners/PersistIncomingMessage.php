@@ -43,13 +43,14 @@ class PersistIncomingMessage
                 'session_id' => $event->sessionId,
                 'direction' => $isOutbound ? 'outbound' : 'inbound',
                 // For outbound: from=me, to=chat. For inbound: from=chat, to=me.
-                'chat_id' => $m['from'] ?? null,
+                'chat_id' => $isOutbound ? ($m['to'] ?? $m['from'] ?? null) : ($m['from'] ?? null),
                 'from_id' => $m['from'] ?? null,
                 'to_id' => $m['to'] ?? null,
                 'type' => $m['type'] ?? 'unknown',
                 'body' => $m['body'] ?? null,
                 'payload' => $m,
                 'status' => $isOutbound ? 'sent' : 'received',
+                'ack' => isset($m['ack']) ? (int) $m['ack'] : null,
                 'wa_timestamp' => isset($m['timestamp']) ? now()->setTimestamp((int) $m['timestamp']) : null,
             ],
         );
